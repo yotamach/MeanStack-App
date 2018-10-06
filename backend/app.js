@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require('mongoose');
@@ -5,15 +6,16 @@ const postsRoutes = require('./routes/posts');
 
 const app = express();
 
-mongoose.connect('mongodb+srv://yot_yot:8Co0eM4xryUTGBqR@cluster0-hx5db.mongodb.net/MeanStack?retryWrites=true',{ useNewUrlParser: true })
+mongoose.connect('mongodb://admin:oria1234@ds143388.mlab.com:43388/myweb',{ useNewUrlParser: true })
 .then((result) => {
   console.log('Connected successfully to Database');  
 }).catch((err) => {
-  console.log('Error while connected to Database');
+  console.log('Error while connected to Database',err);
 });
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use("/images",express.static(path.join("backend/images")));
 
 app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -31,3 +33,4 @@ app.use((req, res, next) => {
 app.use("/api/posts",postsRoutes);
 
 module.exports = app;
+
