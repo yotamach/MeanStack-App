@@ -5,13 +5,14 @@ import { Subject } from "rxjs";
 import { Post } from "./post.model";
 import { map } from "rxjs/operators";
 import { Router } from "@angular/router";
+import { AuthService } from "../auth/auth.service";
 
 @Injectable({ providedIn: "root" })
 export class PostsService {
   private posts: Post[] = [];
   private postsUpdated = new Subject<{posts: Post[], postCount: number}>();
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router, private authService: AuthService) {}
 
   getPosts(postsPerPage: number, currentPage: number) {
     const queryParams = `?pagesize=${postsPerPage}&page=${currentPage}`;
@@ -25,7 +26,8 @@ export class PostsService {
             title: post.title,
             content: post.content,
             id: post._id,
-            imagePath: post.imagePath
+            imagePath: post.imagePath,
+            creator: post.creator
           }; 
         }), maxPosts: postData.maxPosts};
         })
@@ -42,7 +44,7 @@ export class PostsService {
 
   getPost(id: string) {
     return this.http
-    .get<{_id: string, title: string, content: string, imagePath: string}>("http://localhost:3000/api/posts/" + id);
+    .get<{_id: string, title: string, content: string, imagePath: string, creator: string}>("http://localhost:3000/api/posts/" + id);
   }
 
   updatePost(id: string, title: string, content: string, image: File | string) {
@@ -58,7 +60,8 @@ export class PostsService {
         id: id, 
         title: title, 
         content: content, 
-        imagePath: image 
+        imagePath: image,
+        creator: null
       };
     }
     this.http.put("http://localhost:3000/api/posts/" + id ,postData)

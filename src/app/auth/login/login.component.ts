@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { NgForm } from '@angular/forms';
 import { AuthService } from '../auth.service';
-import { formatNumber } from '@angular/common';
 
 @Component({
   selector: 'app-login',
@@ -19,6 +18,7 @@ export class LoginComponent implements OnInit {
     if(form.invalid){
       return;
     }
+    this.isLoading = true;
     this.authService.login(form.value.email,form.value.password);
   }
 }
