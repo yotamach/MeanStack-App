@@ -11,7 +11,13 @@ A web app based posts dashboard including users authentication and authrization,
 
 ## Running the tests
 
-Rub `ng test`
+Run `ng test`
+
+## Running the tests
+
+1. Run `npm eun start` - running Client side 
+2. Rub `npm eun start:server` - running Server side
+3. type on youtr browser `http://localhost:4200` 
 
 ## Deployment
 
