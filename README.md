@@ -13,7 +13,7 @@ A web app based posts dashboard including users authentication and authrization,
 
 Run `ng test`
 
-## Running the tests
+## Running the app
 
 1. Run `npm eun start` - running Client side 
 2. Rub `npm eun start:server` - running Server side
