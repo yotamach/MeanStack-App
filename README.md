@@ -28,7 +28,8 @@ Run `ng build` to build the project. The build artifacts will be stored in the `
 
 * **Yotal Achrak**
 Experianced FullStack developer, working with Abgular, NodeJS, PHP, ES6 
-*private projects* - [PurpleBooth](https://github.com/yotamach)
+* *private projects* - [GitHub accound](https://github.com/yotamach)
+* *LinkedIn* - [LinkedIn profile](www.linkedin.com/in/yotam-achrak-717b6555)
 
 ## License
 
