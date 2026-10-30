@@ -41,5 +41,7 @@ Thumbs.db
 
 # environment & uploads
 .env
-/backend/images/*
-!/backend/images/.gitkeep
+
+# build output & uploads
+dist/
+/apps/server/uploads
