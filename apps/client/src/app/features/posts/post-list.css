@@ -1,0 +1,15 @@
+.center {
+  display: flex;
+  justify-content: center;
+}
+.post-image img {
+  width: 100%;
+  max-height: 24rem;
+  object-fit: contain;
+}
+.info-text {
+  text-align: center;
+}
+.danger {
+  color: var(--mat-sys-error);
+}
