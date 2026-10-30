@@ -1,0 +1,13 @@
+packages:
+  - "apps/*"
+  - "libs/*"
+
+onlyBuiltDependencies:
+  - bcrypt
+
+# @nestjs/platform-express imports rxjs without declaring it; without this it
+# falls back to the Angular app's rxjs 6 hoisted in the virtual store.
+packageExtensions:
+  "@nestjs/platform-express":
+    peerDependencies:
+      rxjs: "^7.8.1"

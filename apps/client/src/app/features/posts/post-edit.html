@@ -1,0 +1,54 @@
+<mat-card>
+  <mat-card-content>
+    @if (loading() || saving()) {
+      <div class="center"><mat-spinner diameter="48" /></div>
+    } @else {
+      <form [formGroup]="form" (ngSubmit)="save()">
+        <mat-form-field>
+          <mat-label>Post title</mat-label>
+          <input matInput type="text" formControlName="title" />
+          @if (form.controls.title.invalid) {
+            <mat-error>Please enter a post title (at least 3 characters).</mat-error>
+          }
+        </mat-form-field>
+
+        <div class="image-picker">
+          <button matButton="outlined" type="button" (click)="filePicker.click()">
+            Pick image
+          </button>
+          <input
+            #filePicker
+            type="file"
+            accept="image/png,image/jpeg"
+            hidden
+            (change)="onImagePicked($event)"
+          />
+          @if (form.controls.image.touched && form.controls.image.hasError('required')) {
+            <p class="field-error" role="alert">Please pick an image.</p>
+          }
+          @if (form.controls.image.hasError('invalidMimeType')) {
+            <p class="field-error" role="alert">Only PNG and JPEG images are allowed.</p>
+          }
+        </div>
+
+        @if (preview(); as src) {
+          @if (!form.controls.image.hasError('invalidMimeType')) {
+            <div class="image-preview">
+              <img [src]="src" [alt]="form.controls.title.value || 'Post image preview'" />
+            </div>
+          }
+        }
+
+        <mat-form-field>
+          <mat-label>Post content</mat-label>
+          <textarea matInput rows="4" formControlName="content"></textarea>
+          @if (form.controls.content.invalid) {
+            <mat-error>Please enter some post content.</mat-error>
+          }
+        </mat-form-field>
+
+        <button matButton="filled" type="submit">Save post</button>
+      </form>
+    }
+  </mat-card-content>
+</mat-card>

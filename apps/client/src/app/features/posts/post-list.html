@@ -1,0 +1,37 @@
+@if (store.loading()) {
+  <div class="center"><mat-spinner diameter="48" /></div>
+} @else {
+  <mat-accordion multi>
+    @for (post of store.posts(); track post._id) {
+      <mat-expansion-panel>
+        <mat-expansion-panel-header>
+          <mat-panel-title>{{ post.title }}</mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="post-image">
+          <img [src]="post.imagePath" [alt]="post.title" />
+        </div>
+        <p>{{ post.content }}</p>
+        @if (canEdit(post.creator)) {
+          <mat-action-row>
+            <a matButton [routerLink]="['/edit', post._id]">Edit</a>
+            <button matButton type="button" class="danger" (click)="store.remove(post._id)">
+              Delete
+            </button>
+          </mat-action-row>
+        }
+      </mat-expansion-panel>
+    }
+  </mat-accordion>
+  @if (store.isEmpty()) {
+    <p class="info-text">No posts added yet!</p>
+  }
+}
+@if (store.total() > 0) {
+  <mat-paginator
+    [length]="store.total()"
+    [pageSize]="store.pageSize()"
+    [pageIndex]="store.pageIndex()"
+    [pageSizeOptions]="pageSizeOptions"
+    (page)="onPage($event)"
+  />
+}
