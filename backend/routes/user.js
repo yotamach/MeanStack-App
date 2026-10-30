@@ -3,48 +3,54 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require('jsonwebtoken');
 const User = require('./../models/user');
+const config = require('../config');
 
-router.post("/signup", (req, res, next) => {
-    bcrypt.hash(req.body.password,10).then((hash) => {
+router.post("/signup", async (req, res, next) => {
+    try {
+        if (!req.body.email || !req.body.password) {
+            return res.status(400).json({ message: "Email and password are required!" });
+        }
+        const hash = await bcrypt.hash(req.body.password, 10);
         const user = new User({
             email: req.body.email,
             password: hash
         });
-        user.save().then((result) => {
-            res.status(201).json({
-                message: "User created!",
-                result: result
-            });
-        }).catch((err) => {
-            res.status(500).json({ error: err });
+        const result = await user.save();
+        res.status(201).json({
+            message: "User created!",
+            result: { id: result._id, email: result.email }
         });
-    });
+    } catch (err) {
+        if (err.name === 'ValidationError') {
+            return res.status(400).json({ message: "Invalid or already used email!" });
+        }
+        next(err);
+    }
 });
 
-router.post("/login", (req, res, next) => {
-    let fetchedUser;
-    User.findOne({ email: req.body.email }).then((user) => {
-        if(!user){
+router.post("/login", async (req, res, next) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
             return res.status(401).json({ message: "Auth failed!" });
         }
-        fetchedUser = user;
-        return bcrypt.compare(req.body.email,user.password);
-    }).then((result) => {
-        if(!result){
-            if(!fetchedUser){
-                return res.status(401).json({ message: "Auth failed!" });
-            }
+        const user = await User.findOne({ email: email });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ message: "Auth failed!" });
         }
-        const token = jwt.sign({ email: fetchedUser.email, userId: fetchedUser._id },'g2r0e1e3n_t2o5p8s5_e0n5e2r5g8y30119',{ expiresIn: "1h" });
-        res.status(200).json({ 
-            token: token, 
+        const token = jwt.sign(
+            { email: user.email, userId: user._id },
+            config.jwtSecret,
+            { expiresIn: "1h" }
+        );
+        res.status(200).json({
+            token: token,
             expiresIn: 3600,
-            userId: fetchedUser._id 
+            userId: user._id
         });
-    }).catch((err) => {
-        console.log(err);
-        return res.status(401).json({ message: "Auth failed!" });
-    });
+    } catch (err) {
+        next(err);
+    }
 });
 
 module.exports = router;
