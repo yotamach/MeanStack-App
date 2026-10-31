@@ -9,6 +9,8 @@ export interface Env {
   TRUST_PROXY: number;
 }
 
+const MIN_PRODUCTION_SECRET_LENGTH = 32;
+
 export const validateEnv = (raw: Record<string, unknown>): Env => {
   const required = (name: string): string => {
     const value = raw[name];
@@ -25,10 +27,20 @@ export const validateEnv = (raw: Record<string, unknown>): Env => {
   if (!Number.isInteger(trustProxy) || trustProxy < 0) {
     throw new Error('TRUST_PROXY must be a non-negative integer');
   }
+  const jwtSecret = required('JWT_SECRET');
+  if (
+    raw.NODE_ENV === 'production' &&
+    (jwtSecret.length < MIN_PRODUCTION_SECRET_LENGTH || /^change-?me/i.test(jwtSecret))
+  ) {
+    throw new Error(
+      `JWT_SECRET is too weak for production: use at least ${MIN_PRODUCTION_SECRET_LENGTH} random characters ` +
+        '(e.g. `openssl rand -base64 48`), not the .env.example placeholder',
+    );
+  }
   return {
     PORT: port,
     MONGODB_URI: required('MONGODB_URI'),
-    JWT_SECRET: required('JWT_SECRET'),
+    JWT_SECRET: jwtSecret,
     CLIENT_ORIGIN: (raw.CLIENT_ORIGIN as string) || 'http://localhost:4200',
     UPLOAD_DIR: (raw.UPLOAD_DIR as string) || 'uploads',
     LOG_LEVEL: (raw.LOG_LEVEL as string) || 'info',

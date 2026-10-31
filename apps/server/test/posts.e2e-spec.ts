@@ -1,4 +1,14 @@
+import { getModelToken } from '@nestjs/mongoose';
+import { existsSync, readdirSync, writeFileSync } from 'fs';
+import { Model } from 'mongoose';
+import { basename, join } from 'path';
+import { Post, PostDocument } from '../src/posts/post.schema';
 import { createTestApp, PNG, registerAndLogin, TestApp } from './helpers';
+
+const uploadDir = () => process.env.UPLOAD_DIR as string;
+const fileOf = (imagePath: string) =>
+  join(uploadDir(), basename(new URL(imagePath, 'http://x').pathname));
+const filesOnDisk = () => readdirSync(uploadDir()).length;
 
 describe('Posts API', () => {
   let t: TestApp;
@@ -37,9 +47,8 @@ describe('Posts API', () => {
     it('stores the post and serves its image', async () => {
       const res = await createPost('First').expect(201);
       expect(res.body.post).toMatchObject({ title: 'First', content: 'World' });
-      const url = new URL(res.body.post.imagePath);
-      expect(url.pathname).toMatch(/^\/images\/pic-\d+\.png$/);
-      const img = await t.http().get(url.pathname).expect(200);
+      expect(res.body.post.imagePath).toMatch(/^\/images\/pic-\d+\.png$/);
+      const img = await t.http().get(res.body.post.imagePath).expect(200);
       expect(img.headers['content-type']).toBe('image/png');
     });
 
@@ -208,6 +217,80 @@ describe('Posts API', () => {
     it('requires authentication', async () => {
       const created = await createPost('Keep me').expect(201);
       await t.http().delete(`/api/posts/${created.body.post.id}`).expect(401);
+    });
+  });
+  describe('image files on disk', () => {
+    it('removes the file when its post is deleted', async () => {
+      const { post } = (await createPost('With file').expect(201)).body;
+      expect(existsSync(fileOf(post.imagePath))).toBe(true);
+      await t.http().delete(`/api/posts/${post.id}`).set(bearer(owner)).expect(200);
+      expect(existsSync(fileOf(post.imagePath))).toBe(false);
+    });
+
+    it('keeps the file when someone else tries to delete the post', async () => {
+      const { post } = (await createPost('Protected').expect(201)).body;
+      await t.http().delete(`/api/posts/${post.id}`).set(bearer(other)).expect(401);
+      expect(existsSync(fileOf(post.imagePath))).toBe(true);
+    });
+
+    it('removes the old file and keeps the new one when the image is replaced', async () => {
+      const { post } = (await createPost('Replace me').expect(201)).body;
+      await t
+        .http()
+        .put(`/api/posts/${post.id}`)
+        .set(bearer(owner))
+        .field('title', 'Replace me')
+        .field('content', 'World')
+        .attach('image', PNG, 'newer.png')
+        .expect(200);
+      const updated = (await t.http().get(`/api/posts/${post.id}`).expect(200)).body;
+      expect(updated.imagePath).not.toBe(post.imagePath);
+      expect(existsSync(fileOf(post.imagePath))).toBe(false);
+      expect(existsSync(fileOf(updated.imagePath))).toBe(true);
+    });
+
+    it('leaves no orphan file when an update is refused', async () => {
+      const { post } = (await createPost('Not yours').expect(201)).body;
+      const before = filesOnDisk();
+      await t
+        .http()
+        .put(`/api/posts/${post.id}`)
+        .set(bearer(other))
+        .field('title', 'Hijack')
+        .field('content', 'x')
+        .attach('image', PNG, 'sneaky.png')
+        .expect(401);
+      expect(filesOnDisk()).toBe(before);
+      expect(existsSync(fileOf(post.imagePath))).toBe(true);
+    });
+
+    it('keeps the current image when no new one is sent, ignoring any imagePath from the client', async () => {
+      const { post } = (await createPost('Stay put').expect(201)).body;
+      await t
+        .http()
+        .put(`/api/posts/${post.id}`)
+        .set(bearer(owner))
+        .field('title', 'Stay put')
+        .field('content', 'Edited')
+        .field('imagePath', 'https://evil.example/tracker.png')
+        .expect(200);
+      const updated = (await t.http().get(`/api/posts/${post.id}`).expect(200)).body;
+      expect(updated).toMatchObject({ content: 'Edited', imagePath: post.imagePath });
+      expect(existsSync(fileOf(post.imagePath))).toBe(true);
+    });
+
+    it('also cleans up posts saved by older versions with an absolute image URL', async () => {
+      const legacyFile = join(uploadDir(), 'legacy-1.png');
+      writeFileSync(legacyFile, PNG);
+      const model = t.app.get<Model<PostDocument>>(getModelToken(Post.name));
+      const legacy = await model.create({
+        title: 'Legacy',
+        content: 'c',
+        imagePath: 'http://localhost:3000/images/legacy-1.png',
+        creator: owner.userId as unknown as Post['creator'],
+      });
+      await t.http().delete(`/api/posts/${legacy.id}`).set(bearer(owner)).expect(200);
+      expect(existsSync(legacyFile)).toBe(false);
     });
   });
 });

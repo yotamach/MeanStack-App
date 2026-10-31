@@ -53,15 +53,15 @@ Base images can be overridden, e.g. when Docker Hub rate-limits you or you use a
 
 All API settings are environment variables (validated at startup; the API refuses to start without the required ones).
 
-| Variable        | Required | Default                 | Purpose                                                                  |
-| --------------- | -------- | ----------------------- | ------------------------------------------------------------------------ |
-| `MONGODB_URI`   | yes      | –                       | MongoDB connection string                                                |
-| `JWT_SECRET`    | yes      | –                       | Signs login tokens. Use a long random value and never commit it          |
-| `PORT`          | no       | `3000`                  | API port                                                                 |
-| `CLIENT_ORIGIN` | no       | `http://localhost:4200` | The only origin allowed by CORS                                          |
-| `UPLOAD_DIR`    | no       | `uploads`               | Where uploaded images are stored                                         |
-| `LOG_LEVEL`     | no       | `info`                  | pino log level                                                           |
-| `TRUST_PROXY`   | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does) |
+| Variable        | Required | Default                 | Purpose                                                                                                                                                                          |
+| --------------- | -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MONGODB_URI`   | yes      | –                       | MongoDB connection string                                                                                                                                                        |
+| `JWT_SECRET`    | yes      | –                       | Signs login tokens. Never commit it. With `NODE_ENV=production` (the Docker image) it must be 32+ characters and not the `.env.example` placeholder, or the API refuses to start |
+| `PORT`          | no       | `3000`                  | API port                                                                                                                                                                         |
+| `CLIENT_ORIGIN` | no       | `http://localhost:4200` | The only origin allowed by CORS                                                                                                                                                  |
+| `UPLOAD_DIR`    | no       | `uploads`               | Where uploaded images are stored                                                                                                                                                 |
+| `LOG_LEVEL`     | no       | `info`                  | pino log level                                                                                                                                                                   |
+| `TRUST_PROXY`   | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does)                                                                                                         |
 
 Generate a secret with `openssl rand -base64 48`.
 
@@ -113,13 +113,13 @@ formatting, lint, type-check, client tests and build; API tests against a MongoD
 ## Production notes
 
 - Serve the app over HTTPS in front of nginx (a load balancer or Caddy/Traefik); keep `TRUST_PROXY` equal to the number of proxies so rate limiting and image URLs see the real client address and protocol.
-- Back up the `mongo-data` and `uploads` volumes. Uploaded images are stored on disk behind `StorageService`; switching to S3 or similar means swapping that one class.
+- Back up the `mongo-data` and `uploads` volumes. Uploaded images are stored on disk behind `StorageService` (switching to S3 or similar means swapping that one class). Posts store the image as a relative path (`/images/<file>`), so the app can move between domains; deleting a post or replacing its image also deletes the file.
 - Logs are JSON on stdout (pino); `Authorization` and `Cookie` headers are redacted and `/api/health` is not logged.
 - Rotate `JWT_SECRET` to sign everyone out.
 
 ## Project status
 
-The project was modernised in phases: security fixes, a TypeScript API and pnpm workspace, a new Angular client, tests and CI, then Docker and docs. Possible next steps: refresh tokens in an httpOnly cookie, deleting image files together with their posts, storing image paths as relative URLs, and an OpenAPI spec.
+The project was modernised in phases: security fixes, a TypeScript API and pnpm workspace, a new Angular client, tests and CI, then Docker and docs. Possible next steps: refresh tokens in an httpOnly cookie, post search and sorting, author and date on posts, and an OpenAPI spec.
 
 ## Authors
 
