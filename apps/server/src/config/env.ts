@@ -32,6 +32,6 @@ export const validateEnv = (raw: Record<string, unknown>): Env => {
     CLIENT_ORIGIN: (raw.CLIENT_ORIGIN as string) || 'http://localhost:4200',
     UPLOAD_DIR: (raw.UPLOAD_DIR as string) || 'uploads',
     LOG_LEVEL: (raw.LOG_LEVEL as string) || 'info',
-    TRUST_PROXY: trustProxy
+    TRUST_PROXY: trustProxy,
   };
 };

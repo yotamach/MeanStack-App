@@ -11,9 +11,23 @@
     "start:server": "pnpm build:shared && pnpm --filter @meanstack/server start:dev",
     "build:server": "pnpm build:shared && pnpm --filter @meanstack/server build",
     "typecheck:server": "pnpm build:shared && pnpm --filter @meanstack/server typecheck",
-    "lint": "pnpm --filter @meanstack/client lint"
+    "lint": "pnpm --filter @meanstack/client lint",
+    "test:server": "pnpm build:shared && pnpm --filter @meanstack/server test",
+    "test:e2e": "pnpm build:shared && pnpm --filter @meanstack/e2e test",
+    "typecheck": "pnpm typecheck:server && pnpm --filter @meanstack/e2e exec tsc -p tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky"
   },
   "engines": {
     "node": "^22.22.3 || >=24.15.0"
+  },
+  "lint-staged": {
+    "*.{ts,html,css,scss,js,json,md,yml,yaml}": "prettier --write"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.9.10"
   }
 }

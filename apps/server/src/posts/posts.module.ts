@@ -7,8 +7,12 @@ import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
 
 @Module({
-  imports: [MongooseModule.forFeature([{ name: Post.name, schema: PostSchema }]), AuthModule, StorageModule],
+  imports: [
+    MongooseModule.forFeature([{ name: Post.name, schema: PostSchema }]),
+    AuthModule,
+    StorageModule,
+  ],
   controllers: [PostsController],
-  providers: [PostsService]
+  providers: [PostsService],
 })
 export class PostsModule {}

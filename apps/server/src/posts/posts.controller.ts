@@ -1,5 +1,16 @@
 import {
-  Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
@@ -11,7 +22,10 @@ import { PostsService } from './posts.service';
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const imageUpload = () =>
-  FileInterceptor('image', { storage: memoryStorage(), limits: { fileSize: MAX_IMAGE_BYTES, files: 1 } });
+  FileInterceptor('image', {
+    storage: memoryStorage(),
+    limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
+  });
 
 const baseUrl = (req: Request) => `${req.protocol}://${req.get('host')}`;
 
@@ -22,7 +36,11 @@ export class PostsController {
   @Post()
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(imageUpload())
-  create(@Req() req: AuthedRequest, @Body() dto: CreatePostDto, @UploadedFile() file?: Express.Multer.File) {
+  create(
+    @Req() req: AuthedRequest,
+    @Body() dto: CreatePostDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     return this.posts.create(req.user.userId, dto, file, baseUrl(req));
   }
 
@@ -43,7 +61,7 @@ export class PostsController {
     @Req() req: AuthedRequest,
     @Param('id', ParseObjectIdPipe) id: string,
     @Body() dto: UpdatePostDto,
-    @UploadedFile() file?: Express.Multer.File
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.posts.update(req.user.userId, id, dto, file, baseUrl(req));
   }

@@ -5,22 +5,28 @@ import type { Post } from '@meanstack/shared';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PostsStore } from './posts.store';
 
-const post = (id: string): Post => ({ _id: id, title: id, content: 'c', imagePath: 'i', creator: 'u' });
+const post = (id: string): Post => ({
+  _id: id,
+  title: id,
+  content: 'c',
+  imagePath: 'i',
+  creator: 'u',
+});
 
 describe('PostsStore', () => {
   let store: PostsStore;
   let http: HttpTestingController;
 
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
     store = TestBed.inject(PostsStore);
     http = TestBed.inject(HttpTestingController);
   });
 
   const flushList = (posts: Post[], max: number) =>
-    http
-      .expectOne((r) => r.url === '/api/posts')
-      .flush({ message: 'ok', posts, maxPosts: max });
+    http.expectOne((r) => r.url === '/api/posts').flush({ message: 'ok', posts, maxPosts: max });
 
   it('loads the first page with the configured page size', () => {
     store.load();
@@ -65,7 +71,9 @@ describe('PostsStore', () => {
 
   it('clears the loading state when a request fails', () => {
     store.load();
-    http.expectOne((r) => r.url === '/api/posts').flush('boom', { status: 500, statusText: 'Server Error' });
+    http
+      .expectOne((r) => r.url === '/api/posts')
+      .flush('boom', { status: 500, statusText: 'Server Error' });
     expect(store.loading()).toBe(false);
   });
 });

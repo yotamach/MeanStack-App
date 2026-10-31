@@ -15,7 +15,11 @@ export class StorageService {
 
   /** Stores the image and returns the file name it was saved under. */
   async save(buffer: Buffer, baseName: string, ext: string): Promise<string> {
-    const safe = baseName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'image';
+    const safe =
+      baseName
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'image';
     const fileName = `${safe}-${Date.now()}.${ext}`;
     await fs.mkdir(this.dir, { recursive: true });
     await fs.writeFile(path.join(this.dir, fileName), buffer);

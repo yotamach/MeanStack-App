@@ -11,7 +11,11 @@ import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, validate: validateEnv, envFilePath: ['.env', '../../.env'] }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validate: validateEnv,
+      envFilePath: ['.env', '../../.env'],
+    }),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => ({
@@ -21,19 +25,23 @@ import { StorageModule } from './storage/storage.module';
           redact: ['req.headers.authorization', 'req.headers.cookie'],
           autoLogging: { ignore: (req) => req.url === '/api/health' },
           transport:
-            process.env.NODE_ENV === 'production' ? undefined : { target: 'pino-pretty', options: { singleLine: true } },
+            process.env.NODE_ENV === 'production'
+              ? undefined
+              : { target: 'pino-pretty', options: { singleLine: true } },
         },
       }),
     }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     MongooseModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService<Env, true>) => ({ uri: config.get('MONGODB_URI', { infer: true }) })
+      useFactory: (config: ConfigService<Env, true>) => ({
+        uri: config.get('MONGODB_URI', { infer: true }),
+      }),
     }),
     StorageModule,
     AuthModule,
-    PostsModule
+    PostsModule,
   ],
-  controllers: [HealthController]
+  controllers: [HealthController],
 })
 export class AppModule {}

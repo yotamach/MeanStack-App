@@ -37,7 +37,9 @@ describe('AuthService', () => {
   it('stays logged out when login fails', () => {
     const { auth, http } = setup();
     auth.login({ email: 'a@x.com', password: 'bad' }).subscribe({ error: () => undefined });
-    http.expectOne('/api/user/login').flush({ message: 'Auth failed!' }, { status: 401, statusText: 'Unauthorized' });
+    http
+      .expectOne('/api/user/login')
+      .flush({ message: 'Auth failed!' }, { status: 401, statusText: 'Unauthorized' });
     expect(auth.isAuthenticated()).toBe(false);
   });
 

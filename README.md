@@ -53,15 +53,15 @@ Base images can be overridden, e.g. when Docker Hub rate-limits you or you use a
 
 All API settings are environment variables (validated at startup; the API refuses to start without the required ones).
 
-| Variable        | Required | Default                 | Purpose                                                                    |
-| --------------- | -------- | ----------------------- | -------------------------------------------------------------------------- |
-| `MONGODB_URI`   | yes      | –                       | MongoDB connection string                                                  |
-| `JWT_SECRET`    | yes      | –                       | Signs login tokens. Use a long random value and never commit it            |
-| `PORT`          | no       | `3000`                  | API port                                                                   |
-| `CLIENT_ORIGIN` | no       | `http://localhost:4200` | The only origin allowed by CORS                                            |
-| `UPLOAD_DIR`    | no       | `uploads`               | Where uploaded images are stored                                           |
-| `LOG_LEVEL`     | no       | `info`                  | pino log level                                                             |
-| `TRUST_PROXY`   | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does)   |
+| Variable        | Required | Default                 | Purpose                                                                  |
+| --------------- | -------- | ----------------------- | ------------------------------------------------------------------------ |
+| `MONGODB_URI`   | yes      | –                       | MongoDB connection string                                                |
+| `JWT_SECRET`    | yes      | –                       | Signs login tokens. Use a long random value and never commit it          |
+| `PORT`          | no       | `3000`                  | API port                                                                 |
+| `CLIENT_ORIGIN` | no       | `http://localhost:4200` | The only origin allowed by CORS                                          |
+| `UPLOAD_DIR`    | no       | `uploads`               | Where uploaded images are stored                                         |
+| `LOG_LEVEL`     | no       | `info`                  | pino log level                                                           |
+| `TRUST_PROXY`   | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does) |
 
 Generate a secret with `openssl rand -base64 48`.
 
@@ -69,30 +69,46 @@ Generate a secret with `openssl rand -base64 48`.
 
 Base path `/api`. Errors always have the shape `{ "message": "..." }`.
 
-| Method | Path            | Auth | Description                                                                         |
-| ------ | --------------- | ---- | ----------------------------------------------------------------------------------- |
-| POST   | `/user/signup`  | –    | `{ email, password }` → `201 { message, result: { id, email } }`                    |
-| POST   | `/user/login`   | –    | `{ email, password }` → `{ token, expiresIn, userId }`; `401` on bad credentials    |
-| GET    | `/posts`        | –    | `?page=&pagesize=` (max 100), newest first → `{ posts, maxPosts }`                  |
-| GET    | `/posts/:id`    | –    | One post, `404` if missing, `400` for a malformed id                                |
-| POST   | `/posts`        | yes  | multipart `title`, `content`, `image` (PNG/JPEG, ≤ 5 MB)                            |
-| PUT    | `/posts/:id`    | yes  | multipart; send `imagePath` to keep the image or `image` to replace it; owner only  |
-| DELETE | `/posts/:id`    | yes  | Owner only                                                                          |
-| GET    | `/health`       | –    | `200 { status, db }` while MongoDB is reachable, otherwise `503`                    |
+| Method | Path           | Auth | Description                                                                        |
+| ------ | -------------- | ---- | ---------------------------------------------------------------------------------- |
+| POST   | `/user/signup` | –    | `{ email, password }` → `201 { message, result: { id, email } }`                   |
+| POST   | `/user/login`  | –    | `{ email, password }` → `{ token, expiresIn, userId }`; `401` on bad credentials   |
+| GET    | `/posts`       | –    | `?page=&pagesize=` (max 100), newest first → `{ posts, maxPosts }`                 |
+| GET    | `/posts/:id`   | –    | One post, `404` if missing, `400` for a malformed id                               |
+| POST   | `/posts`       | yes  | multipart `title`, `content`, `image` (PNG/JPEG, ≤ 5 MB)                           |
+| PUT    | `/posts/:id`   | yes  | multipart; send `imagePath` to keep the image or `image` to replace it; owner only |
+| DELETE | `/posts/:id`   | yes  | Owner only                                                                         |
+| GET    | `/health`      | –    | `200 { status, db }` while MongoDB is reachable, otherwise `503`                   |
 
 Send the token as `Authorization: Bearer <token>`. Login/signup are limited to 20 requests per minute per client.
 
 ## Scripts
 
-| Command                 | What it does                                  |
-| ----------------------- | --------------------------------------------- |
-| `pnpm start`            | Angular dev server                            |
-| `pnpm start:server`     | API in watch mode (builds `libs/shared` first) |
-| `pnpm build`            | Production build of the client                |
-| `pnpm build:server`     | Compile the API to `apps/server/dist`         |
-| `pnpm test`             | Client unit tests (Vitest)                    |
-| `pnpm lint`             | Lint the client (angular-eslint)              |
-| `pnpm typecheck:server` | Type-check the API                            |
+| Command             | What it does                                                 |
+| ------------------- | ------------------------------------------------------------ |
+| `pnpm start`        | Angular dev server                                           |
+| `pnpm start:server` | API in watch mode (builds `libs/shared` first)               |
+| `pnpm build`        | Production build of the client                               |
+| `pnpm build:server` | Compile the API to `apps/server/dist`                        |
+| `pnpm test`         | Client unit tests (Vitest)                                   |
+| `pnpm test:server`  | API unit + integration tests (Jest, supertest, real MongoDB) |
+| `pnpm test:e2e`     | Browser tests (Playwright); starts the API and client itself |
+| `pnpm lint`         | Lint the client (angular-eslint)                             |
+| `pnpm typecheck`    | Type-check the API and the e2e package                       |
+| `pnpm format`       | Format everything with Prettier (`format:check` in CI)       |
+
+A pre-commit hook (Husky + lint-staged) runs Prettier on staged files.
+
+## Testing
+
+- **Client** (`apps/client`, Vitest): auth service, interceptors, guard, image validator and the posts store.
+- **API** (`apps/server`, Jest + supertest): every endpoint against a real MongoDB, including regression tests for the original login, update and delete bugs. Needs MongoDB: `docker compose up -d`, or point `TEST_MONGODB_URI` at another server. Each run uses a throwaway database.
+- **End to end** (`e2e/`, Playwright): signup, login, logout, creating, editing and deleting posts with images, ownership rules and pagination, in a real browser. The first run needs a browser: `pnpm --filter @meanstack/e2e install:browsers` (or set `PW_CHROMIUM_PATH` to an existing Chromium). It uses its own database (`E2E_MONGODB_URI`, default `meanstack_e2e`) and wipes it on every run.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to the main branch and on pull requests:
+formatting, lint, type-check, client tests and build; API tests against a MongoDB service container; Playwright tests; and a build of both Docker images.
 
 ## Production notes
 
@@ -103,7 +119,7 @@ Send the token as `Authorization: Bearer <token>`. Login/signup are limited to 2
 
 ## Project status
 
-The project was modernised in phases (security fixes → TypeScript API and pnpm workspace → new Angular client → Docker and docs). Still to do: automated API integration tests, Playwright end-to-end tests and CI.
+The project was modernised in phases: security fixes, a TypeScript API and pnpm workspace, a new Angular client, tests and CI, then Docker and docs. Possible next steps: refresh tokens in an httpOnly cookie, deleting image files together with their posts, storing image paths as relative URLs, and an OpenAPI spec.
 
 ## Authors
 

@@ -1,0 +1,16 @@
+{
+  "name": "@meanstack/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "install:browsers": "playwright install --with-deps chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "^22.20.5",
+    "mongodb": "^6.10.0",
+    "typescript": "^5.9.3"
+  }
+}
