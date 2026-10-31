@@ -11,7 +11,7 @@ export class CreatePostDto {
 }
 
 export class UpdatePostDto extends CreatePostDto {
-  /** Existing image URL, sent when the image was not replaced. */
+  /** Accepted for older clients, which send the current image URL back; the server ignores it. */
   @IsOptional()
   @IsString()
   imagePath?: string;

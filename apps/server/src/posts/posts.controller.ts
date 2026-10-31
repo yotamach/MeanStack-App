@@ -13,7 +13,6 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { Request } from 'express';
 import { memoryStorage } from 'multer';
 import { AuthedRequest, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ParseObjectIdPipe } from '../common/parse-object-id.pipe';
@@ -27,8 +26,6 @@ const imageUpload = () =>
     limits: { fileSize: MAX_IMAGE_BYTES, files: 1 },
   });
 
-const baseUrl = (req: Request) => `${req.protocol}://${req.get('host')}`;
-
 @Controller('posts')
 export class PostsController {
   constructor(private readonly posts: PostsService) {}
@@ -41,7 +38,7 @@ export class PostsController {
     @Body() dto: CreatePostDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.posts.create(req.user.userId, dto, file, baseUrl(req));
+    return this.posts.create(req.user.userId, dto, file);
   }
 
   @Get()
@@ -63,7 +60,7 @@ export class PostsController {
     @Body() dto: UpdatePostDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.posts.update(req.user.userId, id, dto, file, baseUrl(req));
+    return this.posts.update(req.user.userId, id, dto, file);
   }
 
   @Delete(':id')

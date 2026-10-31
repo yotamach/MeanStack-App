@@ -28,39 +28,38 @@ export class PostsService {
     private readonly storage: StorageService,
   ) {}
 
-  private async storeImage(file: Express.Multer.File, baseUrl: string): Promise<string> {
+  private async storeImage(file: Express.Multer.File): Promise<string> {
     const ext = detectImageExt(file.buffer);
     if (!ext) {
       throw new BadRequestException('Invalid mime type');
     }
-    const name = await this.storage.save(
-      file.buffer,
-      file.originalname.replace(/\.[^.]*$/, ''),
-      ext,
-    );
-    return `${baseUrl}/images/${name}`;
+    return this.storage.save(file.buffer, file.originalname.replace(/\.[^.]*$/, ''), ext);
   }
 
   async create(
     userId: string,
     data: { title: string; content: string },
     file: Express.Multer.File | undefined,
-    baseUrl: string,
   ) {
     if (!file) {
       throw new BadRequestException('Image is required!');
     }
-    const imagePath = await this.storeImage(file, baseUrl);
-    const created = await this.posts.create({ ...data, imagePath, creator: userId });
-    return {
-      message: 'Post added successfully',
-      post: {
-        id: created.id,
-        title: created.title,
-        content: created.content,
-        imagePath: created.imagePath,
-      },
-    };
+    const imagePath = await this.storeImage(file);
+    try {
+      const created = await this.posts.create({ ...data, imagePath, creator: userId });
+      return {
+        message: 'Post added successfully',
+        post: {
+          id: created.id,
+          title: created.title,
+          content: created.content,
+          imagePath: created.imagePath,
+        },
+      };
+    } catch (err) {
+      await this.storage.remove(imagePath);
+      throw err;
+    }
   }
 
   async list(pageSize: number, currentPage: number): Promise<PostsPage> {
@@ -82,35 +81,44 @@ export class PostsService {
     return toDto(post);
   }
 
+  /**
+   * Without a new file the post keeps the image it has; an `imagePath` sent by the client is ignored,
+   * so a post can never be pointed at an arbitrary URL.
+   */
   async update(
     userId: string,
     id: string,
-    data: { title: string; content: string; imagePath?: string },
+    data: { title: string; content: string },
     file: Express.Multer.File | undefined,
-    baseUrl: string,
   ) {
-    let imagePath = data.imagePath;
-    if (file) {
-      imagePath = await this.storeImage(file, baseUrl);
-    }
-    if (!imagePath) {
-      throw new BadRequestException('Image is required!');
-    }
-    const result = await this.posts.updateOne(
+    const newImagePath = file ? await this.storeImage(file) : undefined;
+    const previous = await this.posts.findOneAndUpdate(
       { _id: id, creator: userId },
-      { title: data.title, content: data.content, imagePath },
+      {
+        title: data.title,
+        content: data.content,
+        ...(newImagePath && { imagePath: newImagePath }),
+      },
+      { new: false },
     );
-    if (result.matchedCount === 0) {
+    if (!previous) {
+      if (newImagePath) {
+        await this.storage.remove(newImagePath);
+      }
       throw new UnauthorizedException('Not authorized!');
+    }
+    if (newImagePath) {
+      await this.storage.remove(previous.imagePath);
     }
     return { message: 'Post update successful!' };
   }
 
   async remove(userId: string, id: string) {
-    const result = await this.posts.deleteOne({ _id: id, creator: userId });
-    if (result.deletedCount === 0) {
+    const deleted = await this.posts.findOneAndDelete({ _id: id, creator: userId });
+    if (!deleted) {
       throw new UnauthorizedException('Not authorized!');
     }
+    await this.storage.remove(deleted.imagePath);
     return { message: 'Deletion successful!' };
   }
 }
