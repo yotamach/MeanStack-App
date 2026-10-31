@@ -1,59 +1,115 @@
-# Posts system MEAN App 
+# MeanStack-App
 
-A web app based posts dashboard including users authentication and authrization, and images storage logic.
+A posts dashboard with user accounts and image uploads. Anyone can read posts; signed-in users can create, edit and delete their own.
+
+**Stack:** Angular 22 (standalone, signals, Material 3) · NestJS 11 · MongoDB · TypeScript everywhere · pnpm workspace · Docker
+
+```
+Browser ──► nginx (web, :8080) ──► /            static Angular app
+                               ├─► /api/*       ──► NestJS API (:3000) ──► MongoDB
+                               └─► /images/*    ──► NestJS API (uploaded files on a volume)
+```
 
 ## Repository layout
 
 ```
-apps/server   NestJS + TypeScript API (MongoDB via Mongoose)
-libs/shared   TypeScript types shared by the API and (later) the Angular client
-apps/client   Angular 22 client: standalone components, signals, Material 3, typed reactive forms
+apps/client   Angular client (lazy routes, signal store, typed reactive forms, Vitest, ESLint)
+apps/server   NestJS API (Mongoose, JWT auth, validation, helmet, rate limiting, pino logs)
+libs/shared   TypeScript types shared by the API and the client
 ```
 
-This is a [pnpm](https://pnpm.io/) workspace (`corepack enable` picks the pinned version). Node ^22.22.3 or >=24.15 is required by Angular 22 (`.nvmrc` says 24).
+## Prerequisites
 
-## Installing
+- **Node** `^22.22.3` or `>=24.15` (Angular 22 requirement; `.nvmrc` says 24)
+- **pnpm** 10 (`corepack enable` picks the version pinned in `package.json`)
+- **Docker** (for MongoDB, and for the full-stack setup)
 
-1. `git clone https://github.com/yotamach/MeanStack-App.git && cd MeanStack-App`
-2. `pnpm install`
-3. `cp .env.example .env` and set `JWT_SECRET` (and `MONGODB_URI` if not using the compose Mongo)
-4. `docker compose up -d` to start a local MongoDB
+## Quick start (development)
 
-## Running the app
+```bash
+pnpm install
+cp .env.example .env            # then set JWT_SECRET to a long random string
+docker compose up -d            # MongoDB on 127.0.0.1:27017
 
-1. `pnpm start:server` - API on http://localhost:3000/api (builds `libs/shared` first)
-2. `pnpm start` - Angular client on http://localhost:4200 (proxies `/api` and `/images` to the API, see `apps/client/proxy.conf.json`)
+pnpm start:server               # API  -> http://localhost:3000/api
+pnpm start                      # app  -> http://localhost:4200
+```
 
-## Checks
+The dev server proxies `/api` and `/images` to the API (`apps/client/proxy.conf.json`), so the client only ever uses relative URLs.
 
-- `pnpm test` - client unit tests (Vitest)
-- `pnpm lint` - lint the client (angular-eslint)
-- `pnpm build` - production build of the client
-- `pnpm typecheck:server` - type-check the API
-- `pnpm build:server` - compile the API to `apps/server/dist`
+## Run the whole stack in Docker
 
-## Deployment
+```bash
+cp .env.example .env            # set JWT_SECRET (compose refuses to start without it)
+docker compose --profile app up --build -d
+```
 
-`pnpm build` writes the client to `apps/client/dist/client`. Serve it behind a reverse proxy that forwards `/api` and `/images` to the API (the client calls relative URLs).
+Open http://localhost:8080. Containers: `mongo`, `api` (runs as a non-root user, healthchecked via `/api/health`) and `web` (nginx serving the build and proxying `/api` and `/images`). Data lives in the `mongo-data` and `uploads` volumes.
 
-## Built With
+Base images can be overridden, e.g. when Docker Hub rate-limits you or you use a private registry:
+`docker compose --profile app build --build-arg NODE_IMAGE=mirror.gcr.io/library/node:24-slim`.
 
-* [Angular](https://angular.dev/) - The web framework used
-* [mongoDB](https://www.mongodb.com/) - Dependency Management
-* [nodeJS](https://nodejs.org/) - The server side lang
-* [Express](https://expressjs.com/) - The backend framework
+## Configuration
+
+All API settings are environment variables (validated at startup; the API refuses to start without the required ones).
+
+| Variable        | Required | Default                 | Purpose                                                                    |
+| --------------- | -------- | ----------------------- | -------------------------------------------------------------------------- |
+| `MONGODB_URI`   | yes      | –                       | MongoDB connection string                                                  |
+| `JWT_SECRET`    | yes      | –                       | Signs login tokens. Use a long random value and never commit it            |
+| `PORT`          | no       | `3000`                  | API port                                                                   |
+| `CLIENT_ORIGIN` | no       | `http://localhost:4200` | The only origin allowed by CORS                                            |
+| `UPLOAD_DIR`    | no       | `uploads`               | Where uploaded images are stored                                           |
+| `LOG_LEVEL`     | no       | `info`                  | pino log level                                                             |
+| `TRUST_PROXY`   | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does)   |
+
+Generate a secret with `openssl rand -base64 48`.
+
+## API
+
+Base path `/api`. Errors always have the shape `{ "message": "..." }`.
+
+| Method | Path            | Auth | Description                                                                         |
+| ------ | --------------- | ---- | ----------------------------------------------------------------------------------- |
+| POST   | `/user/signup`  | –    | `{ email, password }` → `201 { message, result: { id, email } }`                    |
+| POST   | `/user/login`   | –    | `{ email, password }` → `{ token, expiresIn, userId }`; `401` on bad credentials    |
+| GET    | `/posts`        | –    | `?page=&pagesize=` (max 100), newest first → `{ posts, maxPosts }`                  |
+| GET    | `/posts/:id`    | –    | One post, `404` if missing, `400` for a malformed id                                |
+| POST   | `/posts`        | yes  | multipart `title`, `content`, `image` (PNG/JPEG, ≤ 5 MB)                            |
+| PUT    | `/posts/:id`    | yes  | multipart; send `imagePath` to keep the image or `image` to replace it; owner only  |
+| DELETE | `/posts/:id`    | yes  | Owner only                                                                          |
+| GET    | `/health`       | –    | `200 { status, db }` while MongoDB is reachable, otherwise `503`                    |
+
+Send the token as `Authorization: Bearer <token>`. Login/signup are limited to 20 requests per minute per client.
+
+## Scripts
+
+| Command                 | What it does                                  |
+| ----------------------- | --------------------------------------------- |
+| `pnpm start`            | Angular dev server                            |
+| `pnpm start:server`     | API in watch mode (builds `libs/shared` first) |
+| `pnpm build`            | Production build of the client                |
+| `pnpm build:server`     | Compile the API to `apps/server/dist`         |
+| `pnpm test`             | Client unit tests (Vitest)                    |
+| `pnpm lint`             | Lint the client (angular-eslint)              |
+| `pnpm typecheck:server` | Type-check the API                            |
+
+## Production notes
+
+- Serve the app over HTTPS in front of nginx (a load balancer or Caddy/Traefik); keep `TRUST_PROXY` equal to the number of proxies so rate limiting and image URLs see the real client address and protocol.
+- Back up the `mongo-data` and `uploads` volumes. Uploaded images are stored on disk behind `StorageService`; switching to S3 or similar means swapping that one class.
+- Logs are JSON on stdout (pino); `Authorization` and `Cookie` headers are redacted and `/api/health` is not logged.
+- Rotate `JWT_SECRET` to sign everyone out.
+
+## Project status
+
+The project was modernised in phases (security fixes → TypeScript API and pnpm workspace → new Angular client → Docker and docs). Still to do: automated API integration tests, Playwright end-to-end tests and CI.
 
 ## Authors
 
-* **Yotal Achrak**
-Experianced FullStack developer, working with Abgular, NodeJS, PHP, ES6 
-* *private projects* - [GitHub accound](https://github.com/yotamach)
-* *LinkedIn* - [LinkedIn profile](www.linkedin.com/in/yotam-achrak-717b6555)
+- **Yotam Achrak** – full-stack developer working with Angular, Node.js, PHP, ES6
+- [GitHub](https://github.com/yotamach) · [LinkedIn](https://www.linkedin.com/in/yotam-achrak-717b6555)
 
 ## License
 
 This project is licensed under the MIT License.
-
-## Enjoy!
-
-
