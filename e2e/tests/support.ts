@@ -35,19 +35,16 @@ export async function registerUser(request: APIRequestContext): Promise<Session>
   return { email, token: body.token, userId: body.userId };
 }
 
-/** Starts the page already logged in, exactly as if the user had logged in earlier. */
+/**
+ * Starts the page already logged in. Logging in through the browser context's own request API stores the
+ * httpOnly refresh cookie exactly as a real login would; the app then restores the session from it.
+ */
 export async function startLoggedIn(page: Page, session: Session) {
-  await page.addInitScript(
-    ([key, value]) => localStorage.setItem(key, value),
-    [
-      'meanstack.session',
-      JSON.stringify({
-        token: session.token,
-        userId: session.userId,
-        expiresAt: Date.now() + 3_600_000,
-      }),
-    ],
-  );
+  const res = await page.context().request.post('/api/user/login', {
+    data: { email: session.email, password: PASSWORD },
+  });
+  if (!res.ok()) throw new Error(`browser login failed: ${res.status()}`);
+  await page.addInitScript(() => localStorage.setItem('meanstack.signedIn', '1'));
 }
 
 export async function createPostViaApi(

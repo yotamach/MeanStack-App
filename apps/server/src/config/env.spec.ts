@@ -12,6 +12,7 @@ describe('validateEnv', () => {
       UPLOAD_DIR: 'uploads',
       LOG_LEVEL: 'info',
       TRUST_PROXY: 0,
+      REFRESH_TOKEN_TTL_DAYS: 7,
     });
   });
   it.each(['MONGODB_URI', 'JWT_SECRET'])('requires %s', (name) => {
@@ -19,6 +20,15 @@ describe('validateEnv', () => {
   });
   it('rejects a bad port', () => {
     expect(() => validateEnv({ ...base, PORT: 'abc' })).toThrow('PORT');
+  });
+  it('parses and validates REFRESH_TOKEN_TTL_DAYS', () => {
+    expect(validateEnv({ ...base, REFRESH_TOKEN_TTL_DAYS: '30' }).REFRESH_TOKEN_TTL_DAYS).toBe(30);
+    expect(() => validateEnv({ ...base, REFRESH_TOKEN_TTL_DAYS: '0' })).toThrow(
+      'REFRESH_TOKEN_TTL_DAYS',
+    );
+    expect(() => validateEnv({ ...base, REFRESH_TOKEN_TTL_DAYS: 'x' })).toThrow(
+      'REFRESH_TOKEN_TTL_DAYS',
+    );
   });
   it('parses TRUST_PROXY and rejects invalid values', () => {
     expect(validateEnv({ ...base, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);

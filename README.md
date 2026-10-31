@@ -53,15 +53,16 @@ Base images can be overridden, e.g. when Docker Hub rate-limits you or you use a
 
 All API settings are environment variables (validated at startup; the API refuses to start without the required ones).
 
-| Variable        | Required | Default                 | Purpose                                                                                                                                                                          |
-| --------------- | -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `MONGODB_URI`   | yes      | –                       | MongoDB connection string                                                                                                                                                        |
-| `JWT_SECRET`    | yes      | –                       | Signs login tokens. Never commit it. With `NODE_ENV=production` (the Docker image) it must be 32+ characters and not the `.env.example` placeholder, or the API refuses to start |
-| `PORT`          | no       | `3000`                  | API port                                                                                                                                                                         |
-| `CLIENT_ORIGIN` | no       | `http://localhost:4200` | The only origin allowed by CORS                                                                                                                                                  |
-| `UPLOAD_DIR`    | no       | `uploads`               | Where uploaded images are stored                                                                                                                                                 |
-| `LOG_LEVEL`     | no       | `info`                  | pino log level                                                                                                                                                                   |
-| `TRUST_PROXY`   | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does)                                                                                                         |
+| Variable                 | Required | Default                 | Purpose                                                                                                                                                                          |
+| ------------------------ | -------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MONGODB_URI`            | yes      | –                       | MongoDB connection string                                                                                                                                                        |
+| `JWT_SECRET`             | yes      | –                       | Signs login tokens. Never commit it. With `NODE_ENV=production` (the Docker image) it must be 32+ characters and not the `.env.example` placeholder, or the API refuses to start |
+| `PORT`                   | no       | `3000`                  | API port                                                                                                                                                                         |
+| `CLIENT_ORIGIN`          | no       | `http://localhost:4200` | The only origin allowed by CORS                                                                                                                                                  |
+| `UPLOAD_DIR`             | no       | `uploads`               | Where uploaded images are stored                                                                                                                                                 |
+| `LOG_LEVEL`              | no       | `info`                  | pino log level                                                                                                                                                                   |
+| `TRUST_PROXY`            | no       | `0`                     | Reverse proxies in front of the API; set `1` behind nginx (compose does)                                                                                                         |
+| `REFRESH_TOKEN_TTL_DAYS` | no       | `7`                     | How long a login session survives without use (sliding; each refresh extends it)                                                                                                 |
 
 Generate a secret with `openssl rand -base64 48`.
 
@@ -69,18 +70,28 @@ Generate a secret with `openssl rand -base64 48`.
 
 Base path `/api`. Errors always have the shape `{ "message": "..." }`.
 
-| Method | Path           | Auth | Description                                                                        |
-| ------ | -------------- | ---- | ---------------------------------------------------------------------------------- |
-| POST   | `/user/signup` | –    | `{ email, password }` → `201 { message, result: { id, email } }`                   |
-| POST   | `/user/login`  | –    | `{ email, password }` → `{ token, expiresIn, userId }`; `401` on bad credentials   |
-| GET    | `/posts`       | –    | `?page=&pagesize=` (max 100), newest first → `{ posts, maxPosts }`                 |
-| GET    | `/posts/:id`   | –    | One post, `404` if missing, `400` for a malformed id                               |
-| POST   | `/posts`       | yes  | multipart `title`, `content`, `image` (PNG/JPEG, ≤ 5 MB)                           |
-| PUT    | `/posts/:id`   | yes  | multipart; send `imagePath` to keep the image or `image` to replace it; owner only |
-| DELETE | `/posts/:id`   | yes  | Owner only                                                                         |
-| GET    | `/health`      | –    | `200 { status, db }` while MongoDB is reachable, otherwise `503`                   |
+| Method | Path            | Auth   | Description                                                                                                            |
+| ------ | --------------- | ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/user/signup`  | –      | `{ email, password }` → `201 { message, result: { id, email } }`                                                       |
+| POST   | `/user/login`   | –      | `{ email, password }` → `{ token, expiresIn, userId }` plus an httpOnly refresh cookie; `401` on bad credentials       |
+| POST   | `/user/refresh` | cookie | Trades the refresh cookie for a new access token and a rotated cookie; `401 { message: "Session expired!" }` otherwise |
+| POST   | `/user/logout`  | cookie | Revokes the session and clears the cookie                                                                              |
+| GET    | `/posts`        | –      | `?page=&pagesize=` (max 100), newest first → `{ posts, maxPosts }`                                                     |
+| GET    | `/posts/:id`    | –      | One post, `404` if missing, `400` for a malformed id                                                                   |
+| POST   | `/posts`        | yes    | multipart `title`, `content`, `image` (PNG/JPEG, ≤ 5 MB)                                                               |
+| PUT    | `/posts/:id`    | yes    | multipart `title`, `content` and optionally `image`; without one the current image is kept; owner only                 |
+| DELETE | `/posts/:id`    | yes    | Owner only                                                                                                             |
+| GET    | `/health`       | –      | `200 { status, db }` while MongoDB is reachable, otherwise `503`                                                       |
 
-Send the token as `Authorization: Bearer <token>`. Login/signup are limited to 20 requests per minute per client.
+Send the access token as `Authorization: Bearer <token>`. Login and signup are limited to 20 requests per minute per client, refresh to 60.
+
+## How sessions work
+
+- **Access token:** a JWT valid for 15 minutes. The Angular app keeps it in memory only, so it is never in `localStorage` or readable after a page reload.
+- **Refresh token:** a random value in an `httpOnly`, `SameSite=Strict` cookie that is only sent to `/api/user/*` (and `Secure` when the request came in over https). The database stores only its SHA-256 hash.
+- **Rotation:** every refresh issues a new refresh token and retires the old one. If a retired token is presented again (after a 10 second grace window for two tabs refreshing together) the whole session family is revoked, which signs out both the thief and the owner.
+- **In the browser:** on load the app restores the session from the cookie, refreshes shortly before the access token expires, and if the API rejects a token it refreshes once and replays the request. Logging out revokes the session on the server and signs out other open tabs.
+- **Signing everyone out:** delete the `refreshtokens` collection. Rotating `JWT_SECRET` alone only invalidates access tokens that are already issued (they last at most 15 minutes); users would just refresh into new ones.
 
 ## Scripts
 
@@ -112,14 +123,14 @@ formatting, lint, type-check, client tests and build; API tests against a MongoD
 
 ## Production notes
 
-- Serve the app over HTTPS in front of nginx (a load balancer or Caddy/Traefik); keep `TRUST_PROXY` equal to the number of proxies so rate limiting and image URLs see the real client address and protocol.
+- Serve the app over HTTPS in front of nginx (a load balancer or Caddy/Traefik) and set `TRUST_PROXY` to the number of proxies between the internet and the API (nginx alone is `1`; a TLS load balancer in front of nginx makes it `2`). Rate limiting and the cookie's `Secure` flag depend on it. The bundled nginx passes through the protocol reported by an upstream proxy.
 - Back up the `mongo-data` and `uploads` volumes. Uploaded images are stored on disk behind `StorageService` (switching to S3 or similar means swapping that one class). Posts store the image as a relative path (`/images/<file>`), so the app can move between domains; deleting a post or replacing its image also deletes the file.
 - Logs are JSON on stdout (pino); `Authorization` and `Cookie` headers are redacted and `/api/health` is not logged.
-- Rotate `JWT_SECRET` to sign everyone out.
+- Rotate `JWT_SECRET` to invalidate issued access tokens (15 minutes at most); to end every login session, also delete the `refreshtokens` collection.
 
 ## Project status
 
-The project was modernised in phases: security fixes, a TypeScript API and pnpm workspace, a new Angular client, tests and CI, then Docker and docs. Possible next steps: refresh tokens in an httpOnly cookie, post search and sorting, author and date on posts, and an OpenAPI spec.
+The project was modernised in phases: security fixes, a TypeScript API and pnpm workspace, a new Angular client, tests and CI, then Docker and docs. Possible next steps: post search and sorting, author and date on posts, and an OpenAPI spec.
 
 ## Authors
 

@@ -7,6 +7,8 @@ export interface Env {
   LOG_LEVEL: string;
   /** Number of reverse proxies in front of the API (0 = none); drives client IP and protocol detection. */
   TRUST_PROXY: number;
+  /** How long a refresh token (and so a login session) stays valid without being used. */
+  REFRESH_TOKEN_TTL_DAYS: number;
 }
 
 const MIN_PRODUCTION_SECRET_LENGTH = 32;
@@ -37,6 +39,10 @@ export const validateEnv = (raw: Record<string, unknown>): Env => {
         '(e.g. `openssl rand -base64 48`), not the .env.example placeholder',
     );
   }
+  const refreshDays = Number(raw.REFRESH_TOKEN_TTL_DAYS ?? 7);
+  if (!Number.isFinite(refreshDays) || refreshDays <= 0) {
+    throw new Error('REFRESH_TOKEN_TTL_DAYS must be a positive number');
+  }
   return {
     PORT: port,
     MONGODB_URI: required('MONGODB_URI'),
@@ -45,5 +51,6 @@ export const validateEnv = (raw: Record<string, unknown>): Env => {
     UPLOAD_DIR: (raw.UPLOAD_DIR as string) || 'uploads',
     LOG_LEVEL: (raw.LOG_LEVEL as string) || 'info',
     TRUST_PROXY: trustProxy,
+    REFRESH_TOKEN_TTL_DAYS: refreshDays,
   };
 };
