@@ -9,5 +9,6 @@ uri.pathname = `/meanstack_test_${process.pid}_${Date.now()}`;
 process.env.MONGODB_URI = uri.toString();
 process.env.JWT_SECRET = 'test-secret';
 process.env.LOG_LEVEL = 'silent';
+process.env.TRUST_PROXY = '1';
 process.env.CLIENT_ORIGIN = 'http://localhost:4200';
 process.env.UPLOAD_DIR = mkdtempSync(join(tmpdir(), 'meanstack-uploads-'));

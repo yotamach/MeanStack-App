@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { AllExceptionsFilter } from './common/http-exception.filter';
 import { Env } from './config/env';
@@ -16,6 +17,7 @@ export function configureApp(app: NestExpressApplication): void {
   }
 
   app.setGlobalPrefix('api');
+  app.use(cookieParser());
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({ origin: config.get('CLIENT_ORIGIN', { infer: true }) });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

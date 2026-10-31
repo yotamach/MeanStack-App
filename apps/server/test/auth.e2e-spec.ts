@@ -49,7 +49,7 @@ describe('Auth API', () => {
       const res = await t.http().post('/api/user/login').send({ email, password }).expect(200);
       expect(res.body).toEqual({
         token: expect.any(String),
-        expiresIn: 3600,
+        expiresIn: 900,
         userId: expect.any(String),
       });
     });

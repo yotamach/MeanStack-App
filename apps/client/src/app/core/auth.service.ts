@@ -1,17 +1,29 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import type { AuthCredentials, LoginResponse, SignupResponse } from '@meanstack/shared';
-import { Observable, tap } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  finalize,
+  firstValueFrom,
+  of,
+  shareReplay,
+  tap,
+  throwError,
+} from 'rxjs';
 import { API_URL } from './api';
 
-const STORAGE_KEY = 'meanstack.session';
-
-interface StoredSession {
-  token: string;
-  userId: string;
-  expiresAt: number;
-}
+/**
+ * The only thing kept in localStorage: a hint that this browser has a refresh cookie, so anonymous
+ * visitors don't trigger a pointless refresh request. It holds no secret. Setting/clearing it also
+ * tells other tabs about logins and logouts.
+ */
+const SIGNED_IN_HINT = 'meanstack.signedIn';
+/** Older versions kept the whole token here; it is removed on startup. */
+const LEGACY_SESSION_KEY = 'meanstack.session';
+/** Refresh after this share of the access token's lifetime. */
+const REFRESH_AT = 0.9;
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -19,16 +31,25 @@ export class AuthService {
   private readonly router = inject(Router);
   private readonly api = inject(API_URL);
 
+  // The access token only ever lives in memory; the refresh token is an httpOnly cookie JS cannot read.
   private readonly _token = signal<string | null>(null);
   private readonly _userId = signal<string | null>(null);
-  private expiryTimer?: ReturnType<typeof setTimeout>;
+  private refreshTimer?: ReturnType<typeof setTimeout>;
+  private inFlight?: Observable<LoginResponse>;
 
   readonly token = this._token.asReadonly();
   readonly userId = this._userId.asReadonly();
   readonly isAuthenticated = computed(() => this._token() !== null);
 
   constructor() {
-    this.restoreSession();
+    this.storage((s) => s.removeItem(LEGACY_SESSION_KEY));
+    // Another tab logged out: follow it.
+    globalThis.addEventListener?.('storage', (event) => {
+      if (event.key === SIGNED_IN_HINT && event.newValue === null && this.isAuthenticated()) {
+        this.clearSession();
+        void this.router.navigate(['/']);
+      }
+    });
   }
 
   signup(credentials: AuthCredentials): Observable<SignupResponse> {
@@ -36,58 +57,79 @@ export class AuthService {
   }
 
   login(credentials: AuthCredentials): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.api}/user/login`, credentials).pipe(
-      tap((res) => {
-        const expiresAt = Date.now() + res.expiresIn * 1000;
-        this.startSession({ token: res.token, userId: res.userId, expiresAt });
+    return this.http
+      .post<LoginResponse>(`${this.api}/user/login`, credentials)
+      .pipe(tap((res) => this.startSession(res)));
+  }
+
+  /** Run once at startup: turns the refresh cookie from a previous visit back into a session. */
+  async restoreSession(): Promise<void> {
+    if (!this.storage((s) => s.getItem(SIGNED_IN_HINT))) {
+      return;
+    }
+    await firstValueFrom(this.refresh().pipe(catchError(() => of(null))));
+  }
+
+  /**
+   * Exchanges the refresh cookie for a new access token. Concurrent callers share one request, because
+   * the server rotates the cookie on every use. Only a definite rejection (401) ends the session; being
+   * offline does not.
+   */
+  refresh(): Observable<LoginResponse> {
+    this.inFlight ??= this.http.post<LoginResponse>(`${this.api}/user/refresh`, {}).pipe(
+      tap((res) => this.startSession(res)),
+      catchError((err: HttpErrorResponse) => {
+        if (err.status === 401) {
+          this.clearSession();
+        }
+        return throwError(() => err);
       }),
+      finalize(() => (this.inFlight = undefined)),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
+    return this.inFlight;
   }
 
   logout(): void {
-    clearTimeout(this.expiryTimer);
-    this._token.set(null);
-    this._userId.set(null);
-    this.writeStorage(null);
+    // Best effort: the local logout must not depend on the server being reachable.
+    this.http.post(`${this.api}/user/logout`, {}).subscribe({ error: () => undefined });
+    this.clearSession();
     void this.router.navigate(['/']);
   }
 
-  private startSession(session: StoredSession): void {
-    this._token.set(session.token);
-    this._userId.set(session.userId);
-    this.writeStorage(session);
-    clearTimeout(this.expiryTimer);
-    this.expiryTimer = setTimeout(() => this.logout(), session.expiresAt - Date.now());
+  private startSession(res: LoginResponse): void {
+    this._token.set(res.token);
+    this._userId.set(res.userId);
+    this.storage((s) => s.setItem(SIGNED_IN_HINT, '1'));
+    clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(
+      () =>
+        this.refresh().subscribe({
+          error: (e: HttpErrorResponse) => this.onBackgroundRefreshFailed(e),
+        }),
+      res.expiresIn * 1000 * REFRESH_AT,
+    );
   }
 
-  private restoreSession(): void {
-    const stored = this.readStorage();
-    if (stored && stored.expiresAt > Date.now()) {
-      this.startSession(stored);
-    } else if (stored) {
-      this.writeStorage(null);
+  private onBackgroundRefreshFailed(err: HttpErrorResponse): void {
+    if (err.status === 401) {
+      void this.router.navigate(['/']);
     }
+  }
+
+  private clearSession(): void {
+    clearTimeout(this.refreshTimer);
+    this._token.set(null);
+    this._userId.set(null);
+    this.storage((s) => s.removeItem(SIGNED_IN_HINT));
   }
 
   // localStorage can be unavailable (private mode, blocked site data), so every access is guarded.
-  private readStorage(): StoredSession | null {
+  private storage<T>(fn: (s: Storage) => T): T | null {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as StoredSession) : null;
+      return fn(localStorage);
     } catch {
       return null;
-    }
-  }
-
-  private writeStorage(session: StoredSession | null): void {
-    try {
-      if (session) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
-      }
-    } catch {
-      // Session simply won't survive a reload.
     }
   }
 }
