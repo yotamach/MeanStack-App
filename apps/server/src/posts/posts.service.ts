@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import type { Post as PostDto, PostsPage } from '@meanstack/shared';
@@ -13,14 +18,14 @@ const toDto = (p: PostDocument): PostDto => ({
   title: p.title,
   content: p.content,
   imagePath: p.imagePath,
-  creator: p.creator.toString()
+  creator: p.creator.toString(),
 });
 
 @Injectable()
 export class PostsService {
   constructor(
     @InjectModel(Post.name) private readonly posts: Model<PostDocument>,
-    private readonly storage: StorageService
+    private readonly storage: StorageService,
   ) {}
 
   private async storeImage(file: Express.Multer.File, baseUrl: string): Promise<string> {
@@ -28,7 +33,11 @@ export class PostsService {
     if (!ext) {
       throw new BadRequestException('Invalid mime type');
     }
-    const name = await this.storage.save(file.buffer, file.originalname.replace(/\.[^.]*$/, ''), ext);
+    const name = await this.storage.save(
+      file.buffer,
+      file.originalname.replace(/\.[^.]*$/, ''),
+      ext,
+    );
     return `${baseUrl}/images/${name}`;
   }
 
@@ -36,7 +45,7 @@ export class PostsService {
     userId: string,
     data: { title: string; content: string },
     file: Express.Multer.File | undefined,
-    baseUrl: string
+    baseUrl: string,
   ) {
     if (!file) {
       throw new BadRequestException('Image is required!');
@@ -45,14 +54,21 @@ export class PostsService {
     const created = await this.posts.create({ ...data, imagePath, creator: userId });
     return {
       message: 'Post added successfully',
-      post: { id: created.id, title: created.title, content: created.content, imagePath: created.imagePath }
+      post: {
+        id: created.id,
+        title: created.title,
+        content: created.content,
+        imagePath: created.imagePath,
+      },
     };
   }
 
   async list(pageSize: number, currentPage: number): Promise<PostsPage> {
     const query = this.posts.find().sort({ _id: -1 });
     if (pageSize > 0 && currentPage > 0) {
-      query.skip(Math.min(pageSize, MAX_PAGE_SIZE) * (currentPage - 1)).limit(Math.min(pageSize, MAX_PAGE_SIZE));
+      query
+        .skip(Math.min(pageSize, MAX_PAGE_SIZE) * (currentPage - 1))
+        .limit(Math.min(pageSize, MAX_PAGE_SIZE));
     }
     const [docs, count] = await Promise.all([query.exec(), this.posts.countDocuments()]);
     return { message: 'Posts fetched successfully!', posts: docs.map(toDto), maxPosts: count };
@@ -71,7 +87,7 @@ export class PostsService {
     id: string,
     data: { title: string; content: string; imagePath?: string },
     file: Express.Multer.File | undefined,
-    baseUrl: string
+    baseUrl: string,
   ) {
     let imagePath = data.imagePath;
     if (file) {
@@ -82,7 +98,7 @@ export class PostsService {
     }
     const result = await this.posts.updateOne(
       { _id: id, creator: userId },
-      { title: data.title, content: data.content, imagePath }
+      { title: data.title, content: data.content, imagePath },
     );
     if (result.matchedCount === 0) {
       throw new UnauthorizedException('Not authorized!');

@@ -24,7 +24,13 @@ describe('Posts API', () => {
 
   describe('creating', () => {
     it('requires authentication', async () => {
-      await t.http().post('/api/posts').field('title', 'abc').field('content', 'c').attach('image', PNG, 'p.png').expect(401);
+      await t
+        .http()
+        .post('/api/posts')
+        .field('title', 'abc')
+        .field('content', 'c')
+        .attach('image', PNG, 'p.png')
+        .expect(401);
       await t.http().post('/api/posts').set('Authorization', 'Bearer undefined').expect(401);
     });
 
@@ -38,7 +44,13 @@ describe('Posts API', () => {
     });
 
     it('requires an image', async () => {
-      const res = await t.http().post('/api/posts').set(bearer(owner)).field('title', 'abc').field('content', 'c').expect(400);
+      const res = await t
+        .http()
+        .post('/api/posts')
+        .set(bearer(owner))
+        .field('title', 'abc')
+        .field('content', 'c')
+        .expect(400);
       expect(res.body.message).toBe('Image is required!');
     });
 
@@ -49,14 +61,24 @@ describe('Posts API', () => {
         .set(bearer(owner))
         .field('title', 'abc')
         .field('content', 'c')
-        .attach('image', Buffer.from('<script>alert(1)</script>'), { filename: 'x.png', contentType: 'image/png' })
+        .attach('image', Buffer.from('<script>alert(1)</script>'), {
+          filename: 'x.png',
+          contentType: 'image/png',
+        })
         .expect(400);
       expect(res.body.message).toBe('Invalid mime type');
     });
 
     it('rejects images over 5MB', async () => {
       const big = Buffer.concat([PNG, Buffer.alloc(5 * 1024 * 1024)]);
-      await t.http().post('/api/posts').set(bearer(owner)).field('title', 'abc').field('content', 'c').attach('image', big, 'big.png').expect(413);
+      await t
+        .http()
+        .post('/api/posts')
+        .set(bearer(owner))
+        .field('title', 'abc')
+        .field('content', 'c')
+        .attach('image', big, 'big.png')
+        .expect(413);
     });
 
     it.each([
@@ -115,7 +137,14 @@ describe('Posts API', () => {
     it('lets the owner edit without changing the image (JSON-ish multipart with imagePath)', async () => {
       const created = await createPost('Edit me').expect(201);
       const { id, imagePath } = created.body.post;
-      await t.http().put(`/api/posts/${id}`).set(bearer(owner)).field('title', 'Edited').field('content', 'World').field('imagePath', imagePath).expect(200);
+      await t
+        .http()
+        .put(`/api/posts/${id}`)
+        .set(bearer(owner))
+        .field('title', 'Edited')
+        .field('content', 'World')
+        .field('imagePath', imagePath)
+        .expect(200);
       const got = await t.http().get(`/api/posts/${id}`).expect(200);
       expect(got.body).toMatchObject({ title: 'Edited', imagePath });
     });
@@ -123,13 +152,27 @@ describe('Posts API', () => {
     it('succeeds even when nothing changed (regression: used to answer 401)', async () => {
       const created = await createPost('Same').expect(201);
       const { id, imagePath } = created.body.post;
-      await t.http().put(`/api/posts/${id}`).set(bearer(owner)).field('title', 'Same').field('content', 'World').field('imagePath', imagePath).expect(200);
+      await t
+        .http()
+        .put(`/api/posts/${id}`)
+        .set(bearer(owner))
+        .field('title', 'Same')
+        .field('content', 'World')
+        .field('imagePath', imagePath)
+        .expect(200);
     });
 
     it('replaces the image when a new one is uploaded', async () => {
       const created = await createPost('New pic').expect(201);
       const { id, imagePath } = created.body.post;
-      await t.http().put(`/api/posts/${id}`).set(bearer(owner)).field('title', 'New pic').field('content', 'World').attach('image', PNG, 'second.png').expect(200);
+      await t
+        .http()
+        .put(`/api/posts/${id}`)
+        .set(bearer(owner))
+        .field('title', 'New pic')
+        .field('content', 'World')
+        .attach('image', PNG, 'second.png')
+        .expect(200);
       const got = await t.http().get(`/api/posts/${id}`).expect(200);
       expect(got.body.imagePath).not.toBe(imagePath);
       expect(got.body.imagePath).toMatch(/second-\d+\.png$/);
@@ -138,7 +181,14 @@ describe('Posts API', () => {
     it("refuses to edit someone else's post", async () => {
       const created = await createPost('Mine').expect(201);
       const { id, imagePath } = created.body.post;
-      const res = await t.http().put(`/api/posts/${id}`).set(bearer(other)).field('title', 'Hacked').field('content', 'x').field('imagePath', imagePath).expect(401);
+      const res = await t
+        .http()
+        .put(`/api/posts/${id}`)
+        .set(bearer(other))
+        .field('title', 'Hacked')
+        .field('content', 'x')
+        .field('imagePath', imagePath)
+        .expect(401);
       expect(res.body.message).toBe('Not authorized!');
       expect((await t.http().get(`/api/posts/${id}`)).body.title).toBe('Mine');
     });

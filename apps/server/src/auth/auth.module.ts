@@ -15,12 +15,12 @@ import { User, UserSchema } from './user.schema';
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => ({
         secret: config.get('JWT_SECRET', { infer: true }),
-        signOptions: { expiresIn: '1h' }
-      })
-    })
+        signOptions: { expiresIn: '1h' },
+      }),
+    }),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtAuthGuard],
-  exports: [JwtAuthGuard, JwtModule]
+  exports: [JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

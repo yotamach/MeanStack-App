@@ -8,7 +8,11 @@ describe('Auth API', () => {
   describe('POST /api/user/signup', () => {
     it('creates a user and never returns the password hash', async () => {
       const email = uniqueEmail();
-      const res = await t.http().post('/api/user/signup').send({ email, password: 'pw123456' }).expect(201);
+      const res = await t
+        .http()
+        .post('/api/user/signup')
+        .send({ email, password: 'pw123456' })
+        .expect(201);
       expect(res.body.result).toEqual({ id: expect.any(String), email });
       expect(JSON.stringify(res.body)).not.toMatch(/\$2[aby]\$/);
     });
@@ -16,7 +20,11 @@ describe('Auth API', () => {
     it('rejects a duplicate email', async () => {
       const email = uniqueEmail();
       await t.http().post('/api/user/signup').send({ email, password: 'pw123456' }).expect(201);
-      const res = await t.http().post('/api/user/signup').send({ email, password: 'other' }).expect(400);
+      const res = await t
+        .http()
+        .post('/api/user/signup')
+        .send({ email, password: 'other' })
+        .expect(400);
       expect(res.body.message).toBe('Invalid or already used email!');
     });
 
@@ -39,11 +47,19 @@ describe('Auth API', () => {
 
     it('returns a token for the right password', async () => {
       const res = await t.http().post('/api/user/login').send({ email, password }).expect(200);
-      expect(res.body).toEqual({ token: expect.any(String), expiresIn: 3600, userId: expect.any(String) });
+      expect(res.body).toEqual({
+        token: expect.any(String),
+        expiresIn: 3600,
+        userId: expect.any(String),
+      });
     });
 
     it('rejects a wrong password (regression: login used to ignore the password)', async () => {
-      const res = await t.http().post('/api/user/login').send({ email, password: 'wrong' }).expect(401);
+      const res = await t
+        .http()
+        .post('/api/user/login')
+        .send({ email, password: 'wrong' })
+        .expect(401);
       expect(res.body).toEqual({ message: 'Auth failed!' });
     });
 
@@ -52,7 +68,11 @@ describe('Auth API', () => {
     });
 
     it('gives an unknown user the same answer as a wrong password', async () => {
-      const res = await t.http().post('/api/user/login').send({ email: uniqueEmail(), password }).expect(401);
+      const res = await t
+        .http()
+        .post('/api/user/login')
+        .send({ email: uniqueEmail(), password })
+        .expect(401);
       expect(res.body).toEqual({ message: 'Auth failed!' });
     });
 

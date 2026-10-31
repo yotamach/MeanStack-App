@@ -12,7 +12,7 @@ const TOKEN_TTL_SECONDS = 3600;
 export class AuthService {
   constructor(
     @InjectModel(User.name) private readonly users: Model<UserDocument>,
-    private readonly jwt: JwtService
+    private readonly jwt: JwtService,
   ) {}
 
   async signup(email: string, password: string): Promise<SignupResponse> {

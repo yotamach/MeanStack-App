@@ -10,6 +10,11 @@ import { StorageService } from './storage/storage.service';
 export function configureApp(app: NestExpressApplication): void {
   const config = app.get<ConfigService<Env, true>>(ConfigService);
 
+  const trustProxy = config.get('TRUST_PROXY', { infer: true });
+  if (trustProxy > 0) {
+    app.set('trust proxy', trustProxy);
+  }
+
   app.setGlobalPrefix('api');
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.enableCors({ origin: config.get('CLIENT_ORIGIN', { infer: true }) });

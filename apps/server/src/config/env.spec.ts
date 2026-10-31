@@ -10,6 +10,8 @@ describe('validateEnv', () => {
       JWT_SECRET: 's',
       CLIENT_ORIGIN: 'http://localhost:4200',
       UPLOAD_DIR: 'uploads',
+      LOG_LEVEL: 'info',
+      TRUST_PROXY: 0,
     });
   });
   it.each(['MONGODB_URI', 'JWT_SECRET'])('requires %s', (name) => {
@@ -17,5 +19,10 @@ describe('validateEnv', () => {
   });
   it('rejects a bad port', () => {
     expect(() => validateEnv({ ...base, PORT: 'abc' })).toThrow('PORT');
+  });
+  it('parses TRUST_PROXY and rejects invalid values', () => {
+    expect(validateEnv({ ...base, TRUST_PROXY: '1' }).TRUST_PROXY).toBe(1);
+    expect(() => validateEnv({ ...base, TRUST_PROXY: '-1' })).toThrow('TRUST_PROXY');
+    expect(() => validateEnv({ ...base, TRUST_PROXY: 'yes' })).toThrow('TRUST_PROXY');
   });
 });

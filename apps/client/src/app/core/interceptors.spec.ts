@@ -23,7 +23,10 @@ describe('interceptors', () => {
       providers: [
         provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { token, isAuthenticated: () => token() !== null, logout } },
+        {
+          provide: AuthService,
+          useValue: { token, isAuthenticated: () => token() !== null, logout },
+        },
         { provide: MatSnackBar, useValue: { open } },
       ],
     });
@@ -45,12 +48,16 @@ describe('interceptors', () => {
   it('never leaks the token to other origins', () => {
     token.set('abc');
     http.get('https://other.example/x').subscribe();
-    expect(ctrl.expectOne('https://other.example/x').request.headers.has('Authorization')).toBe(false);
+    expect(ctrl.expectOne('https://other.example/x').request.headers.has('Authorization')).toBe(
+      false,
+    );
   });
 
   it('shows the API error message', () => {
     http.get('/api/posts').subscribe({ error: () => undefined });
-    ctrl.expectOne('/api/posts').flush({ message: 'Invalid id!' }, { status: 400, statusText: 'Bad Request' });
+    ctrl
+      .expectOne('/api/posts')
+      .flush({ message: 'Invalid id!' }, { status: 400, statusText: 'Bad Request' });
     expect(open).toHaveBeenCalledWith('Invalid id!', 'Dismiss', expect.anything());
     expect(logout).not.toHaveBeenCalled();
   });
@@ -64,11 +71,15 @@ describe('interceptors', () => {
   it('logs out on a rejected token but not on "Not authorized!"', () => {
     token.set('abc');
     http.get('/api/posts').subscribe({ error: () => undefined });
-    ctrl.expectOne('/api/posts').flush({ message: 'Not authorized!' }, { status: 401, statusText: 'Unauthorized' });
+    ctrl
+      .expectOne('/api/posts')
+      .flush({ message: 'Not authorized!' }, { status: 401, statusText: 'Unauthorized' });
     expect(logout).not.toHaveBeenCalled();
 
     http.get('/api/posts').subscribe({ error: () => undefined });
-    ctrl.expectOne('/api/posts').flush({ message: 'Auth failed!' }, { status: 401, statusText: 'Unauthorized' });
+    ctrl
+      .expectOne('/api/posts')
+      .flush({ message: 'Auth failed!' }, { status: 401, statusText: 'Unauthorized' });
     expect(logout).toHaveBeenCalledOnce();
   });
 });
